@@ -1,2 +1,4 @@
-# jsoptimizer
-AppEngine Application for minifying and combining javascript
+appengine-skeleton
+=============================
+
+This is a generated application from the appengine-skeleton archetype.
