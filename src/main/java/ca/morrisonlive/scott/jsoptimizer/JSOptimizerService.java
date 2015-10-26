@@ -139,7 +139,8 @@ public class JSOptimizerService {
 	
     @GET
     @Path("/deletefiles") 
-    public void deleteFiles() {
+    @Produces("application/json")
+    public Object deleteFiles() {
  
     	//get all files in the default bucket 
     	try {
@@ -152,13 +153,18 @@ public class JSOptimizerService {
     		log.severe(exception.getMessage());
 	    }
     	
+    	JSOptimizerResponse response = new JSOptimizerResponse(); 
+    	response.status = "success";
+    	response.message = "files deleted";
+    	return response; 
+    	
     }
     
     @POST
     @Consumes("application/json")
     @Produces("application/json")
     @Path("/getjs") 
-    public Object createJavascriptResource(JsonNode payload) {
+    public Object createJavascriptResource(JsonNode payload) throws Exception {
     	
     	JSOptimizerResponse resp = new JSOptimizerResponse();
     	List<String> filenames = new ArrayList<String>();
@@ -168,7 +174,7 @@ public class JSOptimizerService {
  
     	if(payload.isObject()) {
     		
-    		JsonNode resourceList = payload.get("msg");
+    		JsonNode resourceList = payload.get("msg");  		
     		log.info("JsonNode type is: "+resourceList.getNodeType()+" : "+resourceList.asText() );
     		
     		if(resourceList.isArray()) {
@@ -180,11 +186,20 @@ public class JSOptimizerService {
 	    				filenames.add(location);
 	    			}		
 	    		}
+    		} else {
+    			log.severe("The message was not formated correctly");
     		}
     		
+    	} else {
+    		log.severe("Body is not an object :"+payload.asText());
     	}
-    	
+    		    	
     	try {
+    		
+        	if(key.toString().isEmpty()) {
+        		throw new Exception("Empty key is not allowed");
+        	}
+    		
     		
     		//check to see if we already have the combined script 
     		
