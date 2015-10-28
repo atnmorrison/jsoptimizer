@@ -4,7 +4,9 @@ import static com.googlecode.objectify.ObjectifyService.ofy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -18,6 +20,7 @@ import javax.ws.rs.Produces;
 import ca.morrisonlive.scott.jsoptimizer.entity.CombinedScript;
 import ca.morrisonlive.scott.jsoptimizer.entity.Script;
 import ca.morrisonlive.scott.jsoptimizer.util.ClosureUtil;
+import ca.morrisonlive.scott.jsoptimizer.util.KeyGen;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,7 +66,7 @@ public class JSOptimizerService {
 	class ScriptLoadRequest {
 	
 		public String url;
-		public String combinedKey;
+		public Long combinedKey;
 		public String callbackURL; 
 		
 	}
@@ -85,10 +88,13 @@ public class JSOptimizerService {
     	//try {
     	
 	    	String url = payload.get("url").asText();
-	    	String combinedKey = payload.get("combinedKey").asText(); 
+	    	Long combinedKey = payload.get("combinedKey").asLong();
 	    	//String callbackURL = payload.get("callbackURL").asText(); 
 	    	
 			log.info("Processing file: "+url);	
+			
+			log.warning("The key value "+combinedKey.toString());
+			
 			String minified = ClosureUtil.loadScript(url);
 		
 	    	Script s = new Script();
@@ -97,23 +103,23 @@ public class JSOptimizerService {
 	    	ofy().save().entity(s).now(); 
 	    	
 	    	if(combinedKey != null) {
-	    		CombinedScript cs = ofy().load().type(CombinedScript.class).filter("key", combinedKey).first().now();    		
-	    		
-	    		
+	    		CombinedScript cs = ofy().load().type(CombinedScript.class).filter("id", combinedKey).first().now();
 	    		if(cs != null) {
 		    		if(cs.files != null) {
-			    		List<Script> scripts = ofy().load().type(Script.class).filter("filename in", cs.files).list();
-			    		if(scripts.size() == cs.files.size()) {
+		    			List<Script> savedScripts = ofy().load().type(Script.class).filter("filename in", cs.files).list(); 
+		    			log.warning("files size: "+cs.files.size()+" - savedScripts size: "+savedScripts.size());
+		    			
+			    		if(savedScripts.size() == cs.files.size()) {
+			    			
+			    			
+			    			Map<String, Script> scriptMap = new HashMap<String, Script>(); 
+			    			
+			    			for(Script savedScript: savedScripts) {
+			    				scriptMap.put(savedScript.filename, savedScript);
+			    			}
 			    			
 			    			//combine the scripts 
-			    			StringBuilder combined = new StringBuilder();     			
-			    			for(Script script: scripts) {
-			    				combined.append(script.minified).append(System.lineSeparator());
-			    			}
-			
-			    			GcsOutputChannel outputChannel = gcsService.createOrReplace(new GcsFilename("jovial-sight-107214.appspot.com", cs.getFileName()), new GcsFileOptions.Builder().mimeType("application/javascript").acl("public-read").build());    		
-			        		outputChannel.write(ByteBuffer.wrap(combined.toString().getBytes()));
-			        		outputChannel.close();    			
+			    			generateFile(scriptMap, cs.files, cs);
 			        		
 			        		//send the filename to the callback url 
 			        		log.info("make http callback call here to send the combined resource target to the waiting cms resource" );
@@ -121,11 +127,10 @@ public class JSOptimizerService {
 			    		}
 		    		}
 	    		} else {
-	    			log.info("combined script record is null");
+	    			log.warning("combined script record is null");
 	    		}
 	    		
 	    	}
-	    	
 	    	log.info("trying to save the script file");	
 	    	
     	
@@ -137,6 +142,24 @@ public class JSOptimizerService {
     }
 	
 	
+    public void generateFile(Map<String, Script> savedScripts, List<String> order, CombinedScript cs) throws NoSuchAlgorithmException, IOException {
+    	
+		StringBuilder combined = new StringBuilder();     			
+		for(String scriptKey: order) {
+			combined.append(savedScripts.get(scriptKey).minified).append(System.lineSeparator());
+		}
+
+		cs.key = KeyGen.getCombinedScriptKey(savedScripts, cs.files);
+		cs.loadComplete = true; 
+		ofy().save().entity(cs).now();
+		
+		GcsOutputChannel outputChannel = gcsService.createOrReplace(new GcsFilename("jovial-sight-107214.appspot.com", cs.getFileName()), new GcsFileOptions.Builder().mimeType("application/javascript").acl("public-read").build());    		
+		outputChannel.write(ByteBuffer.wrap(combined.toString().getBytes()));
+		outputChannel.close(); 
+    	
+    }
+    
+    
     @GET
     @Path("/deletefiles") 
     @Produces("application/json")
@@ -170,8 +193,6 @@ public class JSOptimizerService {
     	List<String> filenames = new ArrayList<String>();
     	log.info("JsonNode type is: "+payload.getNodeType());
  
-		StringBuilder key = new StringBuilder();
- 
     	if(payload.isObject()) {
     		
     		JsonNode resourceList = payload.get("msg");  		
@@ -182,7 +203,6 @@ public class JSOptimizerService {
 	    			if(n.isTextual()) {
 	    				log.info("Adding filename :"+n.asText());			
 	    				String location = n.asText().toString();
-	    				key.append(location).append('~');
 	    				filenames.add(location);
 	    			}		
 	    		}
@@ -193,61 +213,72 @@ public class JSOptimizerService {
     	} else {
     		log.severe("Body is not an object :"+payload.asText());
     	}
-    		    	
+    	
     	try {
+    	    		
+    		List<Script> savedScripts = ofy().load().type(Script.class).filter("filename in", filenames).list(); 
+			Map<String, Script> scriptMap = new HashMap<String, Script>(); 
+			
+			for(Script savedScript: savedScripts) {
+				scriptMap.put(savedScript.filename, savedScript);
+			}
+    		CombinedScript cs;
     		
-        	if(key.toString().isEmpty()) {
-        		throw new Exception("Empty key is not allowed");
-        	}
-    		
-    		
+    		if(savedScripts.size() == filenames.size()) {
     		//check to see if we already have the combined script 
-    		
-    		CombinedScript existing = ofy().load().type(CombinedScript.class).filter("key", key.toString()).first().now();		
-    		if(existing != null) {
+    		    			
+    			String key = KeyGen.getCombinedScriptKey(scriptMap, filenames); 
     			
-    			log.info("found an existing database entry: "+existing.getFileName());
-    		
-    			resp.status = "Success";
-    			resp.message = bucketURL+existing.getFileName();
-    			return resp; 
+	    		cs = ofy().load().type(CombinedScript.class).filter("key", key).first().now();		
+	    		if(cs != null) {
+	    			
+	    			if(cs.loadComplete != true) {
+	    				//combine the scripts
+	    				generateFile(scriptMap, cs.files, cs);
+	    			}  			
+	    		} else {
+	        		cs = new CombinedScript(); 
+	        		cs.setFiles(filenames);
+	        		cs.key = KeyGen.getCombinedScriptKey(scriptMap, cs.files);
+	        		generateFile(scriptMap, cs.files, cs);    			
+	    		}
+	    		
+				log.info("found an existing database entry: "+cs.getFileName());
+	    		
+				resp.status = "Success";
+				resp.message = bucketURL+cs.getFileName();
+				return resp;
+	    	
     		}
-    		
-    		Map<String, Script> savedScripts = ofy().load().type(Script.class).ids(filenames);
-    		
+	    		
+	    	
     		log.info("number of saved scripts: "+savedScripts.size());
     		
-    		
-    		StringBuilder combined = new StringBuilder();
-    		CombinedScript cs = new CombinedScript(); 
-    		cs.setKey(key.toString());
+    		cs = new CombinedScript(); 
     		cs.setFiles(filenames);
     		ofy().save().entity(cs).now();
-    		    		
+    		
+    		cs.loadComplete = false; 
+    		 		    		    		
     		for(String file: filenames) {
 
     			Queue queue = QueueFactory.getDefaultQueue();
     			ObjectMapper mapper = new ObjectMapper(); 
-    			if(!savedScripts.containsKey(file)) {
+    			if(!scriptMap.containsKey(file)) {
     			
     				ScriptLoadRequest slr = new ScriptLoadRequest();
-    				slr.combinedKey = key.toString(); 
     				slr.url = file; 
+    				slr.combinedKey = cs.id;
         			
     				TaskOptions task = TaskOptions.Builder.withUrl("/rest/loadscript").method(Method.POST).header("Content-Type", "application/json;charset=UTF-8");
     
     				task.payload(mapper.writeValueAsBytes(slr));
     				queue.add(task);
     				
-    			} else {
-    				log.info("found the script in datastore : "+file);
-    				//found the script in the data store 
-    				combined.append(savedScripts.get(file).minified);
     			}
     		}
     		
-
-        		
+	
     		log.info("unique id: "+cs.getId());
     			
     		resp.status = "Success";
