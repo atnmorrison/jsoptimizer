@@ -72,7 +72,7 @@ public class JSOptimizerService {
 	}
 	
 	
-	public static final String bucketURL = "http://storage.googleapis.com/jovial-sight-107214.appspot.com/";
+	public static final String bucketURL = "https://storage.googleapis.com/jovial-sight-107214.appspot.com/";
 	
     /**
      * Service call used to load a single javascript file into the data store. Optionally a combined script key can be passed if we are generating a combined script and a call back if the combined script has finished generating 
