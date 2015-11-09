@@ -19,9 +19,11 @@ import javax.ws.rs.Produces;
 
 import ca.morrisonlive.scott.jsoptimizer.entity.CombinedScript;
 import ca.morrisonlive.scott.jsoptimizer.entity.Script;
+import ca.morrisonlive.scott.jsoptimizer.json.RequestedScript;
 import ca.morrisonlive.scott.jsoptimizer.util.ClosureUtil;
 import ca.morrisonlive.scott.jsoptimizer.util.KeyGen;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.appengine.api.taskqueue.Queue;
@@ -68,8 +70,12 @@ public class JSOptimizerService {
 		public String url;
 		public Long combinedKey;
 		public String callbackURL; 
-		
+		public RequestedScript rs; 
+	
 	}
+	
+	
+	//scripts can be requested with a library version and a library name. This makes it easier to identify common libraries scripts like JQuery, Angular etc... it also helps with identifying library conflicts 
 	
 	
 	public static final String bucketURL = "https://storage.googleapis.com/jovial-sight-107214.appspot.com/";
@@ -89,6 +95,13 @@ public class JSOptimizerService {
     	
 	    	String url = payload.get("url").asText();
 	    	Long combinedKey = payload.get("combinedKey").asLong();
+	    	
+	    	RequestedScript rs = null; 
+	    	if(payload.get("rs").isObject()) {
+	    		ObjectMapper mapper = new ObjectMapper(); 
+	    		rs = mapper.treeToValue(payload.get("rs"), RequestedScript.class);
+	    			
+	    	}
 	    	//String callbackURL = payload.get("callbackURL").asText(); 
 	    	
 			log.info("Processing file: "+url);	
@@ -98,7 +111,12 @@ public class JSOptimizerService {
 			String minified = ClosureUtil.loadScript(url);
 		
 	    	Script s = new Script();
-	    	s.filename = url;
+	    	
+	    	if(rs != null && rs.libraryName != null) 
+	    		s.filename = rs.libraryName+'-'+rs.libraryVersion;
+	    	else 
+	    		s.filename = url;
+	    	
 	    	s.minified = minified;
 	    	ofy().save().entity(s).now(); 
 	    	
@@ -193,18 +211,31 @@ public class JSOptimizerService {
     	List<String> filenames = new ArrayList<String>();
     	log.info("JsonNode type is: "+payload.getNodeType());
  
+    	
+    	//We will need this if there are libraries passed that haven't been loaded into the system yet 
+    	Map<String, RequestedScript> libraryToRequestedScript = new HashMap();    	
     	if(payload.isObject()) {
     		
     		JsonNode resourceList = payload.get("msg");  		
     		log.info("JsonNode type is: "+resourceList.getNodeType()+" : "+resourceList.asText() );
     		
     		if(resourceList.isArray()) {
-	    		for(JsonNode n: resourceList) {
+	    		ObjectMapper mapper = new ObjectMapper(); 
+    			for(JsonNode n: resourceList) {
+	    			
 	    			if(n.isTextual()) {
 	    				log.info("Adding filename :"+n.asText());			
 	    				String location = n.asText().toString();
 	    				filenames.add(location);
-	    			}		
+	    			} else if(n.isObject()) {
+
+	    				RequestedScript rs = mapper.treeToValue(n, RequestedScript.class);
+	    				filenames.add(rs.libraryName+'-'+rs.libraryVersion);
+	    				libraryToRequestedScript.put(rs.libraryName+'-'+rs.libraryVersion, rs);
+	    				log.info("Script definition "+rs.libraryName);
+	    				
+	    			}
+	    			
 	    		}
     		} else {
     			log.severe("The message was not formated correctly");
@@ -267,9 +298,15 @@ public class JSOptimizerService {
     			if(!scriptMap.containsKey(file)) {
     			
     				ScriptLoadRequest slr = new ScriptLoadRequest();
-    				slr.url = file; 
+    				
     				slr.combinedKey = cs.id;
-        			
+    				if(libraryToRequestedScript.get(file) != null) {
+    					slr.rs = (RequestedScript) libraryToRequestedScript.get(file);
+    					slr.url = slr.rs.localURL;
+    				} else {
+    					slr.url = file; 
+    				}
+    				
     				TaskOptions task = TaskOptions.Builder.withUrl("/rest/loadscript").method(Method.POST).header("Content-Type", "application/json;charset=UTF-8");
     
     				task.payload(mapper.writeValueAsBytes(slr));
