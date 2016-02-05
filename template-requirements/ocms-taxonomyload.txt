@@ -1,0 +1,18 @@
+[
+  { "libraryName" : "jquery"
+   ,"libraryVersion" : "1.11.3"
+   ,"localURL" : "{{secureurl}}/dev3__jqueryui/js/rendering/jquery.js"
+  },
+  { "libraryName" : "jquery-ui"
+   ,"libraryVersion" : "1.11.4"
+   ,"localURL" : "{{secureurl}}/dev3__jqueryui/js/rendering/jquery-ui.js"
+  }
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/json2.js"
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/RESTDynamicLoad.js"
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/RESTPanelDynamicLoad.js"
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/OCMSProduction.js"  
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/OCMSSecureUrlLoad.js"
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/OCMSScriptLoader.js"  
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/taxonomyload/OCMSTaxonomyLoad.js"
+  ,"{{secureurl}}/dev3__OrchestraCMSPublic/RESTTaxonomyLoad.js"
+]

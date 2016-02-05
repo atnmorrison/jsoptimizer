@@ -1,0 +1,5 @@
+["https://dev4-developer-edition.na12.force.com/resource/dev3__jqueryui/js/rendering/jquery.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__jqueryui/js/rendering/jquery-ui.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/json2.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/forms/AjaxForm.js"
+]

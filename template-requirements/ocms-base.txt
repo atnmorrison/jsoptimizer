@@ -1,0 +1,8 @@
+["https://dev4-developer-edition.na12.force.com/resource/dev3__jqueryui/js/rendering/jquery.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__jqueryui/js/rendering/jquery-ui.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/json2.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/RESTDynamicLoad.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/RESTPanelDynamicLoad.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/OCMSSecureUrlLoad.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/OCMSProduction.js"
+,"https://dev4-developer-edition.na12.force.com/resource/dev3__OrchestraCMSPublic/OCMSScriptLoader.js"]

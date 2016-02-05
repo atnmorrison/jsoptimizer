@@ -102,6 +102,7 @@ public class JSOptimizerService {
 	    		rs = mapper.treeToValue(payload.get("rs"), RequestedScript.class);
 	    			
 	    	}
+	    	
 	    	//String callbackURL = payload.get("callbackURL").asText(); 
 	    	
 			log.info("Processing file: "+url);	
@@ -109,7 +110,6 @@ public class JSOptimizerService {
 			log.warning("The key value "+combinedKey.toString());
 			
 			String minified = ClosureUtil.loadScript(url);
-		
 	    	Script s = new Script();
 	    	
 	    	if(rs != null && rs.libraryName != null) 
@@ -118,6 +118,7 @@ public class JSOptimizerService {
 	    		s.filename = url;
 	    	
 	    	s.minified = minified;
+	    	s.loaded = true;
 	    	ofy().save().entity(s).now(); 
 	    	
 	    	if(combinedKey != null) {
@@ -128,10 +129,8 @@ public class JSOptimizerService {
 		    			log.warning("files size: "+cs.files.size()+" - savedScripts size: "+savedScripts.size());
 		    			
 			    		if(savedScripts.size() == cs.files.size()) {
-			    			
-			    			
+			    					
 			    			Map<String, Script> scriptMap = new HashMap<String, Script>(); 
-			    			
 			    			for(Script savedScript: savedScripts) {
 			    				scriptMap.put(savedScript.filename, savedScript);
 			    			}
@@ -248,7 +247,9 @@ public class JSOptimizerService {
     	try {
     	    		
     		List<Script> savedScripts = ofy().load().type(Script.class).filter("filename in", filenames).list(); 
-			Map<String, Script> scriptMap = new HashMap<String, Script>(); 
+			
+    		log.warning("# scripts found: "+savedScripts.size());
+    		Map<String, Script> scriptMap = new HashMap<String, Script>(); 
 			
 			for(Script savedScript: savedScripts) {
 				scriptMap.put(savedScript.filename, savedScript);
@@ -259,6 +260,8 @@ public class JSOptimizerService {
     		//check to see if we already have the combined script 
     		    			
     			String key = KeyGen.getCombinedScriptKey(scriptMap, filenames); 
+    	
+    			log.warning("key: "+key);
     			
 	    		cs = ofy().load().type(CombinedScript.class).filter("key", key).first().now();		
 	    		if(cs != null) {
@@ -266,15 +269,19 @@ public class JSOptimizerService {
 	    			if(cs.loadComplete != true) {
 	    				//combine the scripts
 	    				generateFile(scriptMap, cs.files, cs);
-	    			}  			
+	    			}  	
+	    			
+	    			log.warning("Didn't find a file");
+	    			
 	    		} else {
+	    
+	    			log.warning("Creating a new file");
 	        		cs = new CombinedScript(); 
 	        		cs.setFiles(filenames);
 	        		cs.key = KeyGen.getCombinedScriptKey(scriptMap, cs.files);
 	        		generateFile(scriptMap, cs.files, cs);    			
 	    		}
 	    		
-				log.info("found an existing database entry: "+cs.getFileName());
 	    		
 				resp.status = "Success";
 				resp.message = bucketURL+cs.getFileName();
@@ -297,6 +304,9 @@ public class JSOptimizerService {
     			ObjectMapper mapper = new ObjectMapper(); 
     			if(!scriptMap.containsKey(file)) {
     			
+    				log.warning("Didn't find the script for: "+file);
+    				
+    				
     				ScriptLoadRequest slr = new ScriptLoadRequest();
     				
     				slr.combinedKey = cs.id;
